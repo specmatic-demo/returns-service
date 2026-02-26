@@ -1,0 +1,109 @@
+version: 3
+systemUnderTest:
+  service:
+    $ref: "#/components/services/returnsService"
+    runOptions:
+      $ref: "#/components/runOptions/returnsService"
+dependencies:
+  services:
+    - service:
+        $ref: "#/components/services/orderService"
+        runOptions:
+          $ref: "#/components/runOptions/orderServiceMock"
+    - service:
+        $ref: "#/components/services/paymentService"
+        runOptions:
+          $ref: "#/components/runOptions/paymentServiceMock"
+    - service:
+        $ref: "#/components/services/shippingService"
+        runOptions:
+          $ref: "#/components/runOptions/shippingServiceMock"
+    - service:
+        $ref: "#/components/services/notificationServiceEvents"
+        runOptions:
+          $ref: "#/components/runOptions/notificationServiceEventsMock"
+components:
+  sources:
+    centralContractRepo:
+      git:
+        url: https://github.com/specmatic-demo/central-contract-repository
+  services:
+    returnsService:
+      description: "Returns Service"
+      definitions:
+        - definition:
+            source:
+              $ref: "#/components/sources/centralContractRepo"
+            specs:
+              - spec:
+                  path: "contracts/services/returns-service/http/openapi.yaml"
+              - spec:
+                  path: "contracts/services/returns-service/events/asyncapi.yaml"
+    orderService:
+      description: "Order Service dependency"
+      definitions:
+        - definition:
+            source:
+              $ref: "#/components/sources/centralContractRepo"
+            specs:
+              - spec:
+                  path: "contracts/services/order-service/http/openapi.yaml"
+    paymentService:
+      description: "Payment Service dependency"
+      definitions:
+        - definition:
+            source:
+              $ref: "#/components/sources/centralContractRepo"
+            specs:
+              - spec:
+                  path: "contracts/services/payment-service/http/openapi.yaml"
+    shippingService:
+      description: "Shipping Service dependency"
+      definitions:
+        - definition:
+            source:
+              $ref: "#/components/sources/centralContractRepo"
+            specs:
+              - spec:
+                  path: "contracts/services/shipping-service/http/openapi.yaml"
+    notificationServiceEvents:
+      description: "Notification Service events dependency"
+      definitions:
+        - definition:
+            source:
+              $ref: "#/components/sources/centralContractRepo"
+            specs:
+              - spec:
+                  path: "contracts/services/notification-service/events/asyncapi.yaml"
+  runOptions:
+    returnsService:
+      openapi:
+        type: test
+        host: localhost
+        port: 9012
+      asyncapi:
+        type: test
+        servers:
+          - host: "amqp://localhost:5672"
+            protocol: amqp
+    orderServiceMock:
+      openapi:
+        type: mock
+        host: localhost
+        port: 5211
+    paymentServiceMock:
+      openapi:
+        type: mock
+        host: localhost
+        port: 5212
+    shippingServiceMock:
+      openapi:
+        type: mock
+        host: localhost
+        port: 5213
+    notificationServiceEventsMock:
+      asyncapi:
+        type: mock
+        servers:
+          - host: tcp://localhost:1883
+            protocol: mqtt

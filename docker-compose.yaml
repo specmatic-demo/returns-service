@@ -1,0 +1,28 @@
+services:
+  my-app:
+    build: .
+    container_name: returns-service
+    restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "9012:9012"
+    environment:
+      - RETURNS_AMQP_URL=amqp://rabbitmq:5672
+      - ORDER_BASE_URL=http://host.docker.internal:5211
+      - PAYMENT_BASE_URL=http://host.docker.internal:5212
+      - SHIPPING_BASE_URL=http://host.docker.internal:5213
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: returns-service-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
