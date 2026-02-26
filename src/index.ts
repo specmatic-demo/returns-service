@@ -47,6 +47,7 @@ function isReturnInitiationRequest(value: unknown): value is ReturnInitiationReq
     return false;
   }
 
+  const allowedReasonCodes = new Set(['DAMAGED', 'DEFECTIVE', 'WRONG_ITEM', 'NO_LONGER_NEEDED']);
   const itemsValid = value.items.every((item) => {
     if (!isRecord(item)) {
       return false;
@@ -55,8 +56,10 @@ function isReturnInitiationRequest(value: unknown): value is ReturnInitiationReq
     return (
       typeof item.sku === 'string' &&
       typeof item.quantity === 'number' &&
+      Number.isInteger(item.quantity) &&
       item.quantity >= 1 &&
-      typeof item.reasonCode === 'string'
+      typeof item.reasonCode === 'string' &&
+      allowedReasonCodes.has(item.reasonCode)
     );
   });
 
