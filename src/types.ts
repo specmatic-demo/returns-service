@@ -53,3 +53,17 @@ export interface ReturnStatusChanged {
   toStatus: string;
   changedAt: string;
 }
+
+export type ShippingReturnedStatus = 'RETURN_INITIATED' | 'IN_TRANSIT' | 'RECEIVED' | 'COMPLETED' | 'FAILED';
+
+export interface ShippingReturnedEvent {
+  eventId: string;
+  orderId: string;
+  shipmentId: string;
+  returnId: string;
+  status: ShippingReturnedStatus;
+  title: string;
+  body: string;
+  priority?: 'LOW' | 'NORMAL' | 'HIGH';
+  occurredAt: string;
+}

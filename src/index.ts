@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import express, { type Request, type Response } from 'express';
+import { Kafka, type Producer } from 'kafkajs';
 import {
   connect,
   type Channel,
@@ -11,6 +12,7 @@ import type {
   ReturnEvaluationReply,
   ReturnEvaluationRequest,
   ReturnInitiationRequest,
+  ShippingReturnedEvent,
   ReturnStatus,
   ReturnStatusChanged,
   ReturnSummary
@@ -25,6 +27,11 @@ const statusChangedQueue = process.env.RETURN_STATUS_CHANGED_QUEUE || 'return.st
 const orderBaseUrl = process.env.ORDER_BASE_URL || 'http://localhost:5211';
 const paymentBaseUrl = process.env.PAYMENT_BASE_URL || 'http://localhost:5212';
 const shippingBaseUrl = process.env.SHIPPING_BASE_URL || 'http://localhost:5213';
+const kafkaBrokers = (process.env.RETURNS_KAFKA_BROKERS || 'localhost:9092')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
+const shippingReturnedTopic = process.env.SHIPPING_RETURNED_TOPIC || 'shipping.returned';
 
 const app = express();
 app.use(express.json({ limit: '1mb' }));
@@ -33,6 +40,12 @@ const returns = new Map<string, ReturnSummary>();
 let amqpConnection: ChannelModel | null = null;
 let amqpChannel: Channel | null = null;
 let amqpConnected = false;
+const kafka = new Kafka({
+  clientId: 'returns-service-notifications',
+  brokers: kafkaBrokers
+});
+const kafkaProducer: Producer = kafka.producer();
+let kafkaConnected = false;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -136,6 +149,32 @@ async function callPaymentRefundDependency(returnSummary: ReturnSummary): Promis
       reason: 'RETURN_APPROVED'
     })
   }).catch(() => undefined);
+}
+
+async function ensureKafkaProducerConnected(): Promise<void> {
+  if (kafkaConnected) {
+    return;
+  }
+
+  await kafkaProducer.connect();
+  kafkaConnected = true;
+}
+
+async function publishShippingReturnedEvent(event: ShippingReturnedEvent): Promise<void> {
+  await ensureKafkaProducerConnected();
+  await kafkaProducer.send({
+    topic: shippingReturnedTopic,
+    messages: [{ key: event.returnId, value: JSON.stringify(event) }]
+  });
+}
+
+async function publishShippingReturnedEventSafe(event: ShippingReturnedEvent): Promise<void> {
+  try {
+    await publishShippingReturnedEvent(event);
+  } catch (error: unknown) {
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error(`failed to publish shipping returned event on ${shippingReturnedTopic}: ${detail}`);
+  }
 }
 
 async function declareAddress(address: string): Promise<void> {
@@ -264,7 +303,8 @@ async function startAmqp(): Promise<void> {
 app.get('/health', (_req: Request, res: Response) => {
   res.status(200).json({
     status: 'UP',
-    amqpConnected
+    amqpConnected,
+    kafkaConnected
   });
 });
 
@@ -287,6 +327,19 @@ app.post('/returns', async (req: Request, res: Response) => {
     };
 
     rememberReturn(summary);
+
+    await publishShippingReturnedEventSafe({
+      eventId: randomUUID(),
+      orderId: summary.orderId,
+      shipmentId: `shipment-${summary.orderId}`,
+      returnId: summary.returnId,
+      status: 'RETURN_INITIATED',
+      title: 'Return initiated',
+      body: `Return ${summary.returnId} initiated for order ${summary.orderId}`,
+      priority: 'NORMAL',
+      occurredAt: new Date().toISOString()
+    });
+
     res.status(202).json(summary);
   } catch (error: unknown) {
     const detail = error instanceof Error ? error.message : String(error);
@@ -344,6 +397,21 @@ app.post('/returns/:returnId/decision', async (req: Request, res: Response) => {
       fromStatus: existing.status,
       toStatus: updated.status,
       changedAt: new Date().toISOString()
+    });
+
+    await publishShippingReturnedEventSafe({
+      eventId: randomUUID(),
+      orderId: updated.orderId,
+      shipmentId: `shipment-${updated.orderId}`,
+      returnId: updated.returnId,
+      status: req.body.decision === 'APPROVED' ? 'COMPLETED' : 'FAILED',
+      title: req.body.decision === 'APPROVED' ? 'Return completed' : 'Return failed',
+      body:
+        req.body.decision === 'APPROVED'
+          ? `Return ${updated.returnId} completed for order ${updated.orderId}`
+          : `Return ${updated.returnId} failed for order ${updated.orderId}`,
+      priority: req.body.decision === 'APPROVED' ? 'NORMAL' : 'HIGH',
+      occurredAt: new Date().toISOString()
     });
 
     res.status(200).json(updated);
