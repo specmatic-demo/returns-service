@@ -6,8 +6,6 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      mqtt:
-        condition: service_started
     ports:
       - "9012:9012"
     environment:
@@ -28,8 +26,3 @@ services:
       timeout: 5s
       retries: 20
       start_period: 15s
-  mqtt:
-    image: eclipse-mosquitto:2
-    container_name: returns-service-mqtt
-    restart: unless-stopped
-    network_mode: host
