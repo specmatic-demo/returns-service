@@ -79,6 +79,7 @@ components:
     returnsService:
       openapi:
         type: test
+        filter: "${FILTER:STATUS >= '0'}"
         host: localhost
         port: 9012
       asyncapi:
