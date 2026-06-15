@@ -30,7 +30,6 @@ components:
     notificationServiceRepo:
       git:
         url: https://github.com/specmatic-demo/notification-service
-        branch: migrated_to_federated_repo
   services:
     returnsService:
       description: "Returns Service"
