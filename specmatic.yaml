@@ -27,6 +27,9 @@ components:
     centralContractRepo:
       git:
         url: https://github.com/specmatic-demo/central-contract-repository
+    notificationServiceRepo:
+      git:
+        url: https://github.com/specmatic-demo/notification-service
   services:
     returnsService:
       description: "Returns Service"
@@ -71,10 +74,10 @@ components:
       definitions:
         - definition:
             source:
-              $ref: "#/components/sources/centralContractRepo"
+              $ref: "#/components/sources/notificationServiceRepo"
             specs:
               - spec:
-                  path: "contracts/services/notification-service/events/asyncapi.yaml"
+                  path: "specs/asyncapi.yaml"
   runOptions:
     returnsService:
       openapi:
@@ -106,5 +109,5 @@ components:
       asyncapi:
         type: mock
         servers:
-          - host: localhost:9092
+          - host: localhost:5416
             protocol: kafka
