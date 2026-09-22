@@ -8,6 +8,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  specmatic:
+  contract-tests:
     uses: specmatic-demo/.github/.github/workflows/specmatic-reports.yml@main
     secrets: inherit
